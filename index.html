@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XPAN 画幅裁剪工具</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>XPAN 画幅裁剪工具</h1>
+            <p class="subtitle">65:24 经典全景画幅 · 2.71:1</p>
+        </header>
+
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">📷</div>
+            <p>拖拽图片到这里或点击上传</p>
+            <p class="upload-hint">支持 JPG、PNG、WebP 等常见格式</p>
+            <input type="file" id="fileInput" accept="image/*" hidden>
+        </div>
+
+        <div class="editor-container" id="editorContainer" style="display: none;">
+            <div class="preview-section">
+                <h3>原图预览 · 调整裁剪位置</h3>
+                <div class="crop-container" id="cropContainer">
+                    <img id="originalImage" src="" alt="原图">
+                    <div class="crop-overlay" id="cropOverlay">
+                        <div class="crop-area" id="cropArea"></div>
+                    </div>
+                </div>
+                <div class="controls">
+                    <label>
+                        <span>垂直位置调整：</span>
+                        <input type="range" id="verticalPosition" min="0" max="100" value="50">
+                        <span id="positionValue">50%</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="result-section">
+                <h3>XPAN 画幅预览</h3>
+                <div class="result-container">
+                    <canvas id="resultCanvas"></canvas>
+                </div>
+                <div class="info-bar">
+                    <span id="originalSize">原图尺寸: -</span>
+                    <span id="resultSize">输出尺寸: -</span>
+                </div>
+                <div class="action-buttons">
+                    <button class="btn btn-primary" id="downloadBtn">下载 XPAN 图片</button>
+                    <button class="btn btn-secondary" id="resetBtn">重新选择图片</button>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>XPAN 是哈苏与富士合作生产的经典全景相机，画幅比例为 65:24</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
