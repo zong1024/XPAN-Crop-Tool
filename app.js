@@ -1,5 +1,16 @@
-// XPAN 画幅比例 65:24 (约 2.708:1)
-const XPAN_RATIO = 65 / 24;
+// 画幅比例选项
+const ASPECT_RATIOS = {
+    'XPAN': { ratio: 65/24, label: 'XPAN' },
+    '2.39:1': { ratio: 2.39, label: '2.39:1' },
+    '2.35:1': { ratio: 2.35, label: '2.35:1' },
+    '1.85:1': { ratio: 1.85, label: '1.85:1' },
+    '1.90:1': { ratio: 1.90, label: '1.90:1' },
+    '1.43:1': { ratio: 1.43, label: '1.43:1' }
+};
+
+// 当前选中的比例
+let currentRatio = ASPECT_RATIOS['XPAN'].ratio;
+let currentRatioName = 'XPAN';
 
 // DOM 元素
 const uploadArea = document.getElementById('uploadArea');
@@ -15,6 +26,7 @@ const originalSizeEl = document.getElementById('originalSize');
 const resultSizeEl = document.getElementById('resultSize');
 const downloadBtn = document.getElementById('downloadBtn');
 const resetBtn = document.getElementById('resetBtn');
+const ratioOptions = document.getElementById('ratioOptions');
 
 // 当前图片信息
 let currentImage = null;
@@ -52,6 +64,22 @@ function init() {
     verticalPosition.addEventListener('input', () => {
         positionValue.textContent = verticalPosition.value + '%';
         updateCrop();
+    });
+    
+    // 比例选择
+    ratioOptions.addEventListener('click', (e) => {
+        if (e.target.classList.contains('ratio-btn')) {
+            // 更新按钮状态
+            document.querySelectorAll('.ratio-btn').forEach(btn => btn.classList.remove('active'));
+            e.target.classList.add('active');
+            
+            // 更新当前比例
+            currentRatio = parseFloat(e.target.dataset.ratio);
+            currentRatioName = e.target.dataset.name;
+            
+            // 重新计算裁剪
+            updateCrop();
+        }
     });
     
     // 下载按钮
@@ -111,13 +139,13 @@ function updateCrop() {
     // 计算显示比例
     const displayScale = containerWidth / imageWidth;
     
-    // 计算 XPAN 画幅的裁剪高度
-    const cropHeight = imageWidth / XPAN_RATIO;
+    // 计算当前比例的裁剪高度
+    const cropHeight = imageWidth / currentRatio;
     
-    // 如果图片高度不足以裁剪成 XPAN 画幅
+    // 如果图片高度不足以裁剪
     if (cropHeight > imageHeight) {
         // 按高度计算最大可用宽度
-        const maxWidth = imageHeight * XPAN_RATIO;
+        const maxWidth = imageHeight * currentRatio;
         const displayCropWidth = maxWidth * displayScale;
         const displayCropHeight = containerHeight;
         
@@ -158,12 +186,12 @@ function updatePreview() {
     // 计算裁剪区域
     let cropWidth, cropHeight, cropX, cropY;
     
-    const idealCropHeight = imageWidth / XPAN_RATIO;
+    const idealCropHeight = imageWidth / currentRatio;
     
     if (idealCropHeight > imageHeight) {
         // 图片不够高，按高度计算宽度
         cropHeight = imageHeight;
-        cropWidth = imageHeight * XPAN_RATIO;
+        cropWidth = imageHeight * currentRatio;
         cropY = 0;
         cropX = (imageWidth - cropWidth) / 2;
     } else {
@@ -227,7 +255,8 @@ function downloadImage() {
     
     // 下载
     const link = document.createElement('a');
-    link.download = 'xpan_' + Date.now() + '.jpg';
+    const ratioLabel = currentRatioName.replace(':', 'x').replace('/', '-');
+    link.download = `crop_${ratioLabel}_${Date.now()}.jpg`;
     link.href = canvas.toDataURL('image/jpeg', 0.95);
     link.click();
 }

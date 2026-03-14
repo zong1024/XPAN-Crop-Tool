@@ -30,7 +30,18 @@
                     </div>
                 </div>
                 <div class="controls">
-                    <label>
+                    <div class="ratio-selector">
+                        <label class="ratio-label">ASPECT RATIO</label>
+                        <div class="ratio-options" id="ratioOptions">
+                            <button class="ratio-btn active" data-ratio="2.71" data-name="XPAN">XPAN</button>
+                            <button class="ratio-btn" data-ratio="2.39" data-name="2.39:1">2.39:1</button>
+                            <button class="ratio-btn" data-ratio="2.35" data-name="2.35:1">2.35:1</button>
+                            <button class="ratio-btn" data-ratio="1.85" data-name="1.85:1">1.85:1</button>
+                            <button class="ratio-btn" data-ratio="1.90" data-name="1.90:1">1.90:1</button>
+                            <button class="ratio-btn" data-ratio="1.43" data-name="1.43:1">1.43:1</button>
+                        </div>
+                    </div>
+                    <label class="position-control">
                         <span>Y-POSITION</span>
                         <input type="range" id="verticalPosition" min="0" max="100" value="50">
                         <span id="positionValue">50%</span>

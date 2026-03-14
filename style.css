@@ -273,7 +273,58 @@ header h1::after {
     border: 1px solid #1a1a1a;
 }
 
+.ratio-selector {
+    margin-bottom: 20px;
+}
+
+.ratio-label {
+    display: block;
+    color: #666;
+    font-size: 0.75rem;
+    letter-spacing: 2px;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+}
+
+.ratio-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.ratio-btn {
+    padding: 8px 14px;
+    background: transparent;
+    border: 1px solid #2a2a2a;
+    color: #666;
+    font-family: 'Formula1', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.ratio-btn:hover {
+    border-color: #444;
+    color: #888;
+}
+
+.ratio-btn.active {
+    border-color: #c8aa6e;
+    color: #c8aa6e;
+    background: rgba(200, 170, 110, 0.1);
+}
+
 .controls label {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    color: #666;
+    font-size: 0.85rem;
+    letter-spacing: 1px;
+}
+
+.position-control {
     display: flex;
     align-items: center;
     gap: 20px;
@@ -500,6 +551,23 @@ footer {
     .controls {
         padding: 12px;
         margin-top: 16px;
+    }
+
+    .ratio-selector {
+        margin-bottom: 16px;
+    }
+
+    .ratio-label {
+        font-size: 0.65rem;
+    }
+
+    .ratio-options {
+        gap: 6px;
+    }
+
+    .ratio-btn {
+        padding: 6px 10px;
+        font-size: 0.6rem;
     }
 
     .controls label {
