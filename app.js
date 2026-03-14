@@ -47,6 +47,7 @@ const imageCountEl = document.getElementById('imageCount');
 let currentImage = null;
 let imageWidth = 0;
 let imageHeight = 0;
+let currentExif = null;  // 存储当前图片的EXIF数据
 
 // 初始化事件监听
 function init() {
@@ -144,6 +145,16 @@ function handleFile(file) {
     
     const reader = new FileReader();
     reader.onload = (e) => {
+        const dataUrl = e.target.result;
+        
+        // 提取EXIF数据
+        try {
+            currentExif = piexif.load(dataUrl);
+        } catch (ex) {
+            currentExif = null;
+            console.log('No EXIF data found');
+        }
+        
         const img = new Image();
         img.onload = () => {
             currentImage = img;
@@ -154,13 +165,13 @@ function handleFile(file) {
             batchContainer.style.display = 'none';
             editorContainer.style.display = 'grid';
             
-            originalImage.src = e.target.result;
+            originalImage.src = dataUrl;
             
             setTimeout(() => {
                 updateCrop();
             }, 100);
         };
-        img.src = e.target.result;
+        img.src = dataUrl;
     };
     reader.readAsDataURL(file);
 }
@@ -178,6 +189,16 @@ function handleMultipleFiles(files) {
     imageFiles.forEach(file => {
         const reader = new FileReader();
         reader.onload = (e) => {
+            const dataUrl = e.target.result;
+            
+            // 提取EXIF数据
+            let exif = null;
+            try {
+                exif = piexif.load(dataUrl);
+            } catch (ex) {
+                console.log('No EXIF for', file.name);
+            }
+            
             const img = new Image();
             img.onload = () => {
                 batchImages.push({
@@ -186,14 +207,15 @@ function handleMultipleFiles(files) {
                     image: img,
                     width: img.naturalWidth,
                     height: img.naturalHeight,
-                    yPosition: 50
+                    yPosition: 50,
+                    exif: exif  // 存储EXIF数据
                 });
                 loaded++;
                 if (loaded === imageFiles.length) {
                     showBatchMode();
                 }
             };
-            img.src = e.target.result;
+            img.src = dataUrl;
         };
         reader.readAsDataURL(file);
     });
@@ -361,6 +383,38 @@ function updatePreview() {
     resultCanvas.dataset.cropHeight = cropHeight;
 }
 
+// 带EXIF的canvas转DataUrl
+function canvasToDataURLWithExif(canvas, exif, quality = 0.95) {
+    let dataUrl = canvas.toDataURL('image/jpeg', quality);
+    
+    if (exif) {
+        try {
+            // 更新EXIF中的图片尺寸
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            // 更新0th IFD中的尺寸信息
+            if (exif['0th']) {
+                exif['0th'][piexif.ImageTag.ImageWidth] = width;
+                exif['0th'][piexif.ImageTag.ImageLength] = height;
+            }
+            
+            // 更新Exif IFD中的像素尺寸
+            if (exif['Exif']) {
+                exif['Exif'][piexif.ExifTag.PixelXDimension] = width;
+                exif['Exif'][piexif.ExifTag.PixelYDimension] = height;
+            }
+            
+            const exifBytes = piexif.dump(exif);
+            dataUrl = piexif.insert(exifBytes, dataUrl);
+        } catch (ex) {
+            console.log('Failed to insert EXIF:', ex);
+        }
+    }
+    
+    return dataUrl;
+}
+
 // 下载单张图片
 function downloadImage() {
     if (!currentImage) return;
@@ -382,11 +436,26 @@ function downloadImage() {
         0, 0, cropWidth, cropHeight
     );
     
+    // 使用带EXIF的导出
+    const dataUrl = canvasToDataURLWithExif(canvas, currentExif);
+    
     const link = document.createElement('a');
     const ratioLabel = currentRatioName.replace(':', 'x').replace('/', '-');
     link.download = `crop_${ratioLabel}_${Date.now()}.jpg`;
-    link.href = canvas.toDataURL('image/jpeg', 0.95);
+    link.href = dataUrl;
     link.click();
+}
+
+// DataURL转Blob
+function dataURLtoBlob(dataURL) {
+    const byteString = atob(dataURL.split(',')[1]);
+    const mimeString = dataURL.split(',')[0].split(':')[1].split(';')[0];
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+    }
+    return new Blob([ab], { type: mimeString });
 }
 
 // 批量下载为ZIP
@@ -429,7 +498,10 @@ async function downloadAllAsZip() {
             0, 0, cropWidth, cropHeight
         );
         
-        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.95));
+        // 使用带EXIF的导出
+        const dataUrl = canvasToDataURLWithExif(canvas, item.exif);
+        const blob = dataURLtoBlob(dataUrl);
+        
         const fileName = `${ratioLabel}_${String(i + 1).padStart(3, '0')}_${item.name}`;
         zip.file(fileName, blob);
     }
