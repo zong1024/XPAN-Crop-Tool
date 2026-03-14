@@ -9,8 +9,8 @@
 <body>
     <div class="container">
         <header>
-            <h1>XPAN 画幅裁剪工具</h1>
-            <p class="subtitle">65:24 经典全景画幅 · 2.71:1</p>
+            <h1>XPAN</h1>
+            <p class="subtitle">65:24 PANORAMIC FORMAT</p>
         </header>
 
         <div class="upload-area" id="uploadArea">
@@ -22,7 +22,7 @@
 
         <div class="editor-container" id="editorContainer" style="display: none;">
             <div class="preview-section">
-                <h3>原图预览 · 调整裁剪位置</h3>
+                <h3>SOURCE / ADJUSTMENT</h3>
                 <div class="crop-container" id="cropContainer">
                     <img id="originalImage" src="" alt="原图">
                     <div class="crop-overlay" id="cropOverlay">
@@ -31,7 +31,7 @@
                 </div>
                 <div class="controls">
                     <label>
-                        <span>垂直位置调整：</span>
+                        <span>Y-POSITION</span>
                         <input type="range" id="verticalPosition" min="0" max="100" value="50">
                         <span id="positionValue">50%</span>
                     </label>
@@ -39,17 +39,17 @@
             </div>
 
             <div class="result-section">
-                <h3>XPAN 画幅预览</h3>
+                <h3>XPAN / OUTPUT</h3>
                 <div class="result-container">
                     <canvas id="resultCanvas"></canvas>
                 </div>
                 <div class="info-bar">
-                    <span id="originalSize">原图尺寸: -</span>
-                    <span id="resultSize">输出尺寸: -</span>
+                    <span id="originalSize">SOURCE: -</span>
+                    <span id="resultSize">OUTPUT: -</span>
                 </div>
                 <div class="action-buttons">
-                    <button class="btn btn-primary" id="downloadBtn">下载 XPAN 图片</button>
-                    <button class="btn btn-secondary" id="resetBtn">重新选择图片</button>
+                    <button class="btn btn-primary" id="downloadBtn">DOWNLOAD</button>
+                    <button class="btn btn-secondary" id="resetBtn">RESET</button>
                 </div>
             </div>
         </div>

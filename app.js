@@ -192,8 +192,8 @@ function updatePreview() {
     );
     
     // 更新尺寸信息
-    originalSizeEl.textContent = `原图尺寸: ${imageWidth} × ${imageHeight}`;
-    resultSizeEl.textContent = `输出尺寸: ${Math.round(cropWidth)} × ${Math.round(cropHeight)}`;
+    originalSizeEl.textContent = `SOURCE: ${imageWidth} × ${imageHeight}`;
+    resultSizeEl.textContent = `OUTPUT: ${Math.round(cropWidth)} × ${Math.round(cropHeight)}`;
     
     // 存储裁剪信息供下载使用
     resultCanvas.dataset.cropX = cropX;
