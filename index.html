@@ -10,14 +10,14 @@
     <div class="container">
         <header>
             <h1>XPAN</h1>
-            <p class="subtitle">65:24 PANORAMIC FORMAT</p>
+            <p class="subtitle">PANORAMIC CROP TOOL</p>
         </header>
 
         <div class="upload-area" id="uploadArea">
             <div class="upload-icon">📷</div>
             <p>拖拽图片到这里或点击上传</p>
-            <p class="upload-hint">支持 JPG、PNG、WebP 等常见格式</p>
-            <input type="file" id="fileInput" accept="image/*" hidden>
+            <p class="upload-hint">支持批量上传 JPG、PNG、WebP 等格式</p>
+            <input type="file" id="fileInput" accept="image/*" multiple hidden>
         </div>
 
         <div class="editor-container" id="editorContainer" style="display: none;">
@@ -65,11 +65,41 @@
             </div>
         </div>
 
+        <!-- 批量处理区域 -->
+        <div class="batch-container" id="batchContainer" style="display: none;">
+            <h3>BATCH QUEUE <span id="imageCount">(0)</span></h3>
+            <div class="batch-controls">
+                <div class="batch-ratio">
+                    <label>ASPECT RATIO</label>
+                    <div class="ratio-options" id="batchRatioOptions">
+                        <button class="ratio-btn active" data-ratio="2.71" data-name="XPAN">XPAN</button>
+                        <button class="ratio-btn" data-ratio="2.39" data-name="2.39:1">2.39:1</button>
+                        <button class="ratio-btn" data-ratio="2.35" data-name="2.35:1">2.35:1</button>
+                        <button class="ratio-btn" data-ratio="1.85" data-name="1.85:1">1.85:1</button>
+                        <button class="ratio-btn" data-ratio="1.90" data-name="1.90:1">1.90:1</button>
+                        <button class="ratio-btn" data-ratio="1.43" data-name="1.43:1">1.43:1</button>
+                    </div>
+                </div>
+                <div class="batch-position">
+                    <label>Y-POSITION (ALL)</label>
+                    <input type="range" id="batchPosition" min="0" max="100" value="50">
+                    <span id="batchPositionValue">50%</span>
+                </div>
+            </div>
+            <div class="image-queue" id="imageQueue"></div>
+            <div class="batch-actions">
+                <button class="btn btn-primary" id="batchDownloadBtn">DOWNLOAD ALL (ZIP)</button>
+                <button class="btn btn-secondary" id="addMoreBtn">+ ADD IMAGES</button>
+                <button class="btn btn-danger" id="clearAllBtn">CLEAR ALL</button>
+            </div>
+        </div>
+
         <footer>
             <p>XPAN 是哈苏与富士合作生产的经典全景相机，画幅比例为 65:24</p>
         </footer>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
