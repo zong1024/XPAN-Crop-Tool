@@ -49,6 +49,28 @@ let imageWidth = 0;
 let imageHeight = 0;
 let currentExif = null;  // 存储当前图片的EXIF数据
 
+// 拼接模式相关
+let currentMode = 'crop';  // 'crop' 或 'stitch'
+let stitchImg1 = null;
+let stitchImg2 = null;
+let cvReady = false;
+
+// DOM 元素 - 拼接模式
+const stitchUploadArea = document.getElementById('stitchUploadArea');
+const stitchSlot1 = document.getElementById('stitchSlot1');
+const stitchSlot2 = document.getElementById('stitchSlot2');
+const stitchImg1El = document.getElementById('stitchImg1');
+const stitchImg2El = document.getElementById('stitchImg2');
+const stitchFileInput = document.getElementById('stitchFileInput');
+const startStitchBtn = document.getElementById('startStitchBtn');
+const removeStitch1 = document.getElementById('removeStitch1');
+const removeStitch2 = document.getElementById('removeStitch2');
+const progressContainer = document.getElementById('progressContainer');
+const progressFill = document.getElementById('progressFill');
+const progressText = document.getElementById('progressText');
+const cropModeBtn = document.getElementById('cropModeBtn');
+const stitchModeBtn = document.getElementById('stitchModeBtn');
+
 // 初始化事件监听
 function init() {
     // 点击上传区域
@@ -124,6 +146,226 @@ function init() {
     
     // 清空所有
     clearAllBtn.addEventListener('click', clearAll);
+    
+    // 模式切换
+    cropModeBtn.addEventListener('click', () => switchMode('crop'));
+    stitchModeBtn.addEventListener('click', () => switchMode('stitch'));
+    
+    // 拼接模式事件
+    stitchSlot1.addEventListener('click', () => {
+        stitchFileInput.dataset.slot = '1';
+        stitchFileInput.click();
+    });
+    
+    stitchSlot2.addEventListener('click', () => {
+        stitchFileInput.dataset.slot = '2';
+        stitchFileInput.click();
+    });
+    
+    stitchFileInput.addEventListener('change', handleStitchFileSelect);
+    
+    removeStitch1.addEventListener('click', (e) => {
+        e.stopPropagation();
+        clearStitchSlot(1);
+    });
+    
+    removeStitch2.addEventListener('click', (e) => {
+        e.stopPropagation();
+        clearStitchSlot(2);
+    });
+    
+    startStitchBtn.addEventListener('click', startStitch);
+}
+
+// 切换模式
+function switchMode(mode) {
+    currentMode = mode;
+    
+    cropModeBtn.classList.toggle('active', mode === 'crop');
+    stitchModeBtn.classList.toggle('active', mode === 'stitch');
+    
+    uploadArea.style.display = 'none';
+    stitchUploadArea.style.display = 'none';
+    editorContainer.style.display = 'none';
+    batchContainer.style.display = 'none';
+    progressContainer.style.display = 'none';
+    
+    if (mode === 'crop') {
+        uploadArea.style.display = 'block';
+    } else {
+        stitchUploadArea.style.display = 'block';
+    }
+}
+
+// 处理拼接文件选择
+function handleStitchFileSelect(e) {
+    const file = e.target.files[0];
+    const slot = e.target.dataset.slot;
+    
+    if (!file || !file.type.startsWith('image/')) return;
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const dataUrl = e.target.result;
+        const img = new Image();
+        img.onload = () => {
+            if (slot === '1') {
+                stitchImg1 = { image: img, dataUrl: dataUrl };
+                stitchImg1El.src = dataUrl;
+                stitchImg1El.style.display = 'block';
+                removeStitch1.style.display = 'flex';
+                stitchSlot1.querySelector('.stitch-slot-content').style.display = 'none';
+            } else {
+                stitchImg2 = { image: img, dataUrl: dataUrl };
+                stitchImg2El.src = dataUrl;
+                stitchImg2El.style.display = 'block';
+                removeStitch2.style.display = 'flex';
+                stitchSlot2.querySelector('.stitch-slot-content').style.display = 'none';
+            }
+            updateStitchButton();
+        };
+        img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+}
+
+// 清除拼接槽位
+function clearStitchSlot(slot) {
+    if (slot === 1) {
+        stitchImg1 = null;
+        stitchImg1El.src = '';
+        stitchImg1El.style.display = 'none';
+        removeStitch1.style.display = 'none';
+        stitchSlot1.querySelector('.stitch-slot-content').style.display = 'block';
+    } else {
+        stitchImg2 = null;
+        stitchImg2El.src = '';
+        stitchImg2El.style.display = 'none';
+        removeStitch2.style.display = 'none';
+        stitchSlot2.querySelector('.stitch-slot-content').style.display = 'block';
+    }
+    updateStitchButton();
+}
+
+// 更新拼接按钮状态
+function updateStitchButton() {
+    startStitchBtn.disabled = !(stitchImg1 && stitchImg2);
+}
+
+// 显示进度
+function showProgress(percent, message) {
+    progressContainer.style.display = 'block';
+    progressFill.style.width = percent + '%';
+    progressText.textContent = message;
+}
+
+// 隐藏进度
+function hideProgress() {
+    progressContainer.style.display = 'none';
+}
+
+// 开始拼接
+function startStitch() {
+    if (!stitchImg1 || !stitchImg2) return;
+    
+    startStitchBtn.disabled = true;
+    showProgress(0, '初始化...');
+    
+    // 使用主线程处理（简化版）
+    setTimeout(() => {
+        simpleStitch(stitchImg1, stitchImg2);
+    }, 100);
+}
+
+// 简单拼接（无特征匹配，直接水平拼接）
+function simpleStitch(img1Data, img2Data) {
+    try {
+        showProgress(20, '加载图像...');
+        
+        const img1 = img1Data.image;
+        const img2 = img2Data.image;
+        
+        showProgress(40, '计算拼接...');
+        
+        // 计算拼接后的尺寸
+        const resultWidth = img1.width + img2.width;
+        const resultHeight = Math.max(img1.height, img2.height);
+        
+        // 创建画布
+        const canvas = document.createElement('canvas');
+        canvas.width = resultWidth;
+        canvas.height = resultHeight;
+        const ctx = canvas.getContext('2d');
+        
+        // 绘制两张图片
+        ctx.drawImage(img1, 0, 0);
+        ctx.drawImage(img2, img1.width, 0);
+        
+        showProgress(60, '裁切为XPAN画幅...');
+        
+        // 裁切为 XPAN 画幅
+        const xpanRatio = 65 / 24;
+        let cropWidth = resultWidth;
+        let cropHeight = cropWidth / xpanRatio;
+        
+        if (cropHeight > resultHeight) {
+            cropHeight = resultHeight;
+            cropWidth = cropHeight * xpanRatio;
+        }
+        
+        const cropX = (resultWidth - cropWidth) / 2;
+        const cropY = (resultHeight - cropHeight) / 2;
+        
+        // 创建裁切后的画布
+        const croppedCanvas = document.createElement('canvas');
+        croppedCanvas.width = cropWidth;
+        croppedCanvas.height = cropHeight;
+        const croppedCtx = croppedCanvas.getContext('2d');
+        
+        croppedCtx.drawImage(canvas, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+        
+        showProgress(80, '生成结果...');
+        
+        // 转换为图片并显示
+        const dataUrl = croppedCanvas.toDataURL('image/jpeg', 0.95);
+        
+        // 设置为当前图片
+        const resultImg = new Image();
+        resultImg.onload = () => {
+            currentImage = resultImg;
+            imageWidth = cropWidth;
+            imageHeight = cropHeight;
+            
+            // 切换到编辑模式
+            stitchUploadArea.style.display = 'none';
+            progressContainer.style.display = 'none';
+            editorContainer.style.display = 'grid';
+            
+            originalImage.src = dataUrl;
+            
+            // 重置比例到 XPAN
+            currentRatio = 65/24;
+            currentRatioName = 'XPAN';
+            document.querySelectorAll('#ratioOptions .ratio-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.name === 'XPAN');
+            });
+            
+            setTimeout(() => {
+                updateCrop();
+            }, 100);
+            
+            startStitchBtn.disabled = false;
+        };
+        resultImg.src = dataUrl;
+        
+        showProgress(100, '完成！');
+        
+    } catch (error) {
+        alert('拼接失败: ' + error.message);
+        hideProgress();
+        startStitchBtn.disabled = false;
+    }
 }
 
 // 处理文件选择

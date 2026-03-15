@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#e94560">
-    <meta name="description" content="XPAN 画幅裁剪工具 - 支持XPAN、电影等多种比例的批量裁剪">
+    <meta name="description" content="XPAN 画幅裁剪工具 - 支持XPAN、电影等多种比例的批量裁剪和全景拼接">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="XPAN Crop">
@@ -18,13 +18,53 @@
         <header>
             <h1>XPAN</h1>
             <p class="subtitle">PANORAMIC CROP TOOL</p>
+            <!-- 模式切换 -->
+            <div class="mode-switcher">
+                <button class="mode-btn active" data-mode="crop" id="cropModeBtn">裁切模式</button>
+                <button class="mode-btn" data-mode="stitch" id="stitchModeBtn">拼接模式</button>
+            </div>
         </header>
 
+        <!-- 裁切模式上传区域 -->
         <div class="upload-area" id="uploadArea">
             <div class="upload-icon">📷</div>
             <p>拖拽图片到这里或点击上传</p>
             <p class="upload-hint">支持批量上传 JPG、PNG、WebP 等格式</p>
             <input type="file" id="fileInput" accept="image/*" multiple hidden>
+        </div>
+
+        <!-- 拼接模式上传区域 -->
+        <div class="stitch-upload-area" id="stitchUploadArea" style="display: none;">
+            <h3>上传两张重叠照片进行拼接</h3>
+            <div class="stitch-images">
+                <div class="stitch-slot" id="stitchSlot1">
+                    <div class="stitch-slot-content">
+                        <span class="slot-number">1</span>
+                        <p>第一张照片</p>
+                    </div>
+                    <img id="stitchImg1" style="display: none;">
+                    <button class="remove-stitch-img" id="removeStitch1" style="display: none;">×</button>
+                </div>
+                <div class="stitch-plus">+</div>
+                <div class="stitch-slot" id="stitchSlot2">
+                    <div class="stitch-slot-content">
+                        <span class="slot-number">2</span>
+                        <p>第二张照片</p>
+                    </div>
+                    <img id="stitchImg2" style="display: none;">
+                    <button class="remove-stitch-img" id="removeStitch2" style="display: none;">×</button>
+                </div>
+            </div>
+            <input type="file" id="stitchFileInput" accept="image/*" hidden>
+            <button class="btn btn-primary" id="startStitchBtn" disabled>开始拼接</button>
+        </div>
+
+        <!-- 进度条 -->
+        <div class="progress-container" id="progressContainer" style="display: none;">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <p class="progress-text" id="progressText">处理中...</p>
         </div>
 
         <div class="editor-container" id="editorContainer" style="display: none;">
@@ -108,6 +148,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/piexifjs@1.0.6/piexif.min.js"></script>
+    <script src="https://docs.opencv.org/4.x/opencv.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
