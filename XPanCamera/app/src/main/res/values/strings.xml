@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">XPAN Camera</string>
+    <string name="main_camera">Main Camera</string>
+    <string name="ultra_wide">Ultra Wide</string>
+    <string name="capture">Capture</string>
+    <string name="processing">Processing…</string>
+    <string name="stitching">Stitching…</string>
+    <string name="saving">Saving…</string>
+    <string name="ready">Ready</string>
+    <string name="error_camera">Camera error</string>
+    <string name="error_stitching">Stitching failed</string>
+    <string name="permission_required">Camera permission required</string>
+</resources>

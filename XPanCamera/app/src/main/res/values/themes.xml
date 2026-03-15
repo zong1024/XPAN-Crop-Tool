@@ -1,0 +1,11 @@
+<resources>
+    <style name="Theme.XPanCamera" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#e94560</item>
+        <item name="colorPrimaryDark">#0f0f1a</item>
+        <item name="colorAccent">#e94560</item>
+        <item name="android:windowBackground">#0f0f1a</item>
+        <item name="android:statusBarColor">#0f0f1a</item>
+        <item name="android:navigationBarColor">#0f0f1a</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>
