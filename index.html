@@ -29,8 +29,8 @@
         <div class="upload-area" id="uploadArea">
             <div class="upload-icon">📷</div>
             <p>拖拽图片到这里或点击上传</p>
-            <p class="upload-hint">支持批量上传 JPG、PNG、WebP 等格式</p>
-            <input type="file" id="fileInput" accept="image/*" multiple hidden>
+            <p class="upload-hint">支持批量上传 JPG、PNG、WebP、Sony ARW (RAW) 等格式</p>
+            <input type="file" id="fileInput" accept="image/*,.arw" multiple hidden>
         </div>
 
         <!-- 拼接模式上传区域 -->
@@ -55,7 +55,7 @@
                     <button class="remove-stitch-img" id="removeStitch2" style="display: none;">×</button>
                 </div>
             </div>
-            <input type="file" id="stitchFileInput" accept="image/*" hidden>
+            <input type="file" id="stitchFileInput" accept="image/*,.arw" hidden>
             <button class="btn btn-primary" id="startStitchBtn" disabled>开始拼接</button>
         </div>
 
@@ -149,6 +149,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/piexifjs@1.0.6/piexif.min.js"></script>
     <script src="https://docs.opencv.org/4.x/opencv.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/utif@3.1.0/UTIF.min.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

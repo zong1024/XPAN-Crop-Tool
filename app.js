@@ -71,6 +71,152 @@ const progressText = document.getElementById('progressText');
 const cropModeBtn = document.getElementById('cropModeBtn');
 const stitchModeBtn = document.getElementById('stitchModeBtn');
 
+// 检查是否为RAW文件
+function isRawFile(file) {
+    const rawExtensions = ['.arw', '.cr2', '.cr3', '.nef', '.dng', '.orf', '.rw2', '.raf', '.tiff', '.tif'];
+    const fileName = file.name.toLowerCase();
+    return rawExtensions.some(ext => fileName.endsWith(ext)) || 
+           file.type === 'image/x-sony-arw' ||
+           file.type === 'image/x-canon-cr2' ||
+           file.type === 'image/x-nikon-nef' ||
+           file.type === 'image/x-adobe-dng' ||
+           file.type === 'image/tiff';
+}
+
+// 从RAW文件中提取嵌入的JPEG预览
+function extractEmbeddedJpeg(data) {
+    // JPEG起始标记 FFD8，结束标记 FFD9
+    // Sony ARW 文件通常有多个嵌入的 JPEG（缩略图、预览图等）
+    // 我们需要找到最大的那个（全尺寸预览图通常在文件末尾附近）
+    
+    let jpegSegments = [];
+    
+    // 找所有的 JPEG 起始和结束标记
+    for (let i = 0; i < data.length - 1; i++) {
+        if (data[i] === 0xFF && data[i + 1] === 0xD8) {
+            jpegSegments.push({ type: 'start', pos: i });
+        }
+        if (data[i] === 0xFF && data[i + 1] === 0xD9) {
+            jpegSegments.push({ type: 'end', pos: i });
+        }
+    }
+    
+    console.log('找到 JPEG 标记总数:', jpegSegments.length);
+    
+    // 找所有有效的 JPEG 段（起始到结束的配对）
+    let validJpegs = [];
+    for (let i = 0; i < jpegSegments.length; i++) {
+        const marker = jpegSegments[i];
+        if (marker.type === 'start') {
+            // 找这个起始标记后面最近的结束标记
+            for (let j = i + 1; j < jpegSegments.length; j++) {
+                const endMarker = jpegSegments[j];
+                if (endMarker.type === 'end' && endMarker.pos > marker.pos) {
+                    const size = endMarker.pos - marker.pos;
+                    validJpegs.push({
+                        start: marker.pos,
+                        end: endMarker.pos,
+                        size: size,
+                        startIndex: i
+                    });
+                    break; // 只匹配第一个结束标记
+                }
+            }
+        }
+    }
+    
+    console.log('找到有效 JPEG 段:', validJpegs.length);
+    
+    // 按大小排序，找最大的
+    validJpegs.sort((a, b) => b.size - a.size);
+    
+    // 输出所有找到的 JPEG 大小（调试用）
+    validJpegs.forEach((jpeg, idx) => {
+        console.log(`JPEG ${idx + 1}: 位置 ${jpeg.start}, 大小 ${(jpeg.size / 1024).toFixed(1)} KB`);
+    });
+    
+    // 选择最大的 JPEG（至少 100KB 才算全尺寸预览）
+    if (validJpegs.length > 0 && validJpegs[0].size > 100000) {
+        const best = validJpegs[0];
+        console.log('选择最大 JPEG 预览: 位置', best.start, '大小', (best.size / 1024).toFixed(1), 'KB');
+        const jpegData = data.slice(best.start, best.end + 2);
+        const blob = new Blob([jpegData], { type: 'image/jpeg' });
+        return blob;
+    }
+    
+    // 降低要求到 10KB
+    if (validJpegs.length > 0 && validJpegs[0].size > 10000) {
+        const best = validJpegs[0];
+        console.log('选择可用 JPEG 预览: 位置', best.start, '大小', (best.size / 1024).toFixed(1), 'KB');
+        const jpegData = data.slice(best.start, best.end + 2);
+        const blob = new Blob([jpegData], { type: 'image/jpeg' });
+        return blob;
+    }
+    
+    console.log('未找到有效的 JPEG 预览');
+    return null;
+}
+
+// 解码RAW文件 (Sony ARW 等) - 提取嵌入的预览JPEG
+async function decodeRawFile(arrayBuffer, fileName) {
+    const data = new Uint8Array(arrayBuffer);
+    
+    // 方法1: 查找嵌入的JPEG预览图（大多数RAW文件都有）
+    const jpegBlob = extractEmbeddedJpeg(data);
+    if (jpegBlob) {
+        console.log('成功提取嵌入的JPEG预览:', fileName);
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(jpegBlob);
+        });
+    }
+    
+    // 方法2: 尝试使用 UTIF 解码（适用于TIFF格式的RAW）
+    if (typeof UTIF !== 'undefined') {
+        try {
+            const ifds = UTIF.decode(arrayBuffer);
+            if (ifds && ifds.length > 0) {
+                // 找最大的图像
+                let mainIfd = ifds[0];
+                for (const ifd of ifds) {
+                    const w = UTIF.ifdGet(ifd, 256) || 0;
+                    const h = UTIF.ifdGet(ifd, 257) || 0;
+                    const mw = UTIF.ifdGet(mainIfd, 256) || 0;
+                    const mh = UTIF.ifdGet(mainIfd, 257) || 0;
+                    if (w * h > mw * mh) {
+                        mainIfd = ifd;
+                    }
+                }
+                
+                const width = UTIF.ifdGet(mainIfd, 256);
+                const height = UTIF.ifdGet(mainIfd, 257);
+                
+                if (width && height && width > 0 && height > 0) {
+                    UTIF.decodeImage(arrayBuffer, mainIfd);
+                    const rgba = UTIF.toRGBA8(mainIfd);
+                    
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    
+                    const imageData = ctx.createImageData(width, height);
+                    imageData.data.set(rgba);
+                    ctx.putImageData(imageData, 0, 0);
+                    
+                    return canvas.toDataURL('image/jpeg', 0.95);
+                }
+            }
+        } catch (e) {
+            console.log('UTIF解码失败:', e.message);
+        }
+    }
+    
+    throw new Error('无法解码RAW文件，请确保文件是有效的RAW格式');
+}
+
 // 初始化事件监听
 function init() {
     // 点击上传区域
@@ -202,11 +348,12 @@ function handleStitchFileSelect(e) {
     const file = e.target.files[0];
     const slot = e.target.dataset.slot;
     
-    if (!file || !file.type.startsWith('image/')) return;
+    if (!file) return;
     
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        const dataUrl = e.target.result;
+    const isRaw = isRawFile(file);
+    if (!file.type.startsWith('image/') && !isRaw) return;
+    
+    processFile(file).then(dataUrl => {
         const img = new Image();
         img.onload = () => {
             if (slot === '1') {
@@ -225,8 +372,10 @@ function handleStitchFileSelect(e) {
             updateStitchButton();
         };
         img.src = dataUrl;
-    };
-    reader.readAsDataURL(file);
+    }).catch(err => {
+        alert('图片加载失败: ' + err.message);
+    });
+    
     e.target.value = '';
 }
 
@@ -378,24 +527,84 @@ function handleFileSelect(e) {
     }
 }
 
+// 处理文件（返回Promise）
+async function processFile(file) {
+    const isRaw = isRawFile(file);
+    
+    if (!file.type.startsWith('image/') && !isRaw) {
+        throw new Error('请选择图片文件！');
+    }
+    
+    let dataUrl;
+    
+    if (isRaw) {
+        // 处理RAW文件
+        const arrayBuffer = await file.arrayBuffer();
+        dataUrl = await decodeRawFile(arrayBuffer, file.name);
+    } else {
+        // 处理普通图片
+        dataUrl = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }
+    
+    return dataUrl;
+}
+
 // 处理单张图片（预览模式）
-function handleFile(file) {
-    if (!file.type.startsWith('image/')) {
+async function handleFile(file) {
+    const isRaw = isRawFile(file);
+    
+    if (!file.type.startsWith('image/') && !isRaw) {
         alert('请选择图片文件！');
         return;
     }
     
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        const dataUrl = e.target.result;
+    // 显示加载提示
+    if (isRaw) {
+        showProgress(0, '正在解码RAW文件...');
+    }
+    
+    try {
+        let dataUrl;
+        let exifData = null;
         
-        // 提取EXIF数据
-        try {
-            currentExif = piexif.load(dataUrl);
-        } catch (ex) {
-            currentExif = null;
-            console.log('No EXIF data found');
+        if (isRaw) {
+            // 处理RAW文件
+            showProgress(30, '读取RAW数据...');
+            const arrayBuffer = await file.arrayBuffer();
+            
+            showProgress(50, '解码RAW图像...');
+            dataUrl = await decodeRawFile(arrayBuffer, file.name);
+            
+            showProgress(80, '加载预览...');
+            // RAW文件通常不包含标准EXIF，尝试从预览图中提取
+            try {
+                exifData = piexif.load(dataUrl);
+            } catch (ex) {
+                console.log('No EXIF data in decoded RAW');
+            }
+        } else {
+            // 处理普通图片
+            dataUrl = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+            
+            // 提取EXIF数据
+            try {
+                exifData = piexif.load(dataUrl);
+            } catch (ex) {
+                console.log('No EXIF data found');
+            }
         }
+        
+        currentExif = exifData;
         
         const img = new Image();
         img.onload = () => {
@@ -406,6 +615,7 @@ function handleFile(file) {
             uploadArea.style.display = 'none';
             batchContainer.style.display = 'none';
             editorContainer.style.display = 'grid';
+            hideProgress();
             
             originalImage.src = dataUrl;
             
@@ -413,25 +623,39 @@ function handleFile(file) {
                 updateCrop();
             }, 100);
         };
+        img.onerror = () => {
+            hideProgress();
+            alert('图片加载失败！');
+        };
         img.src = dataUrl;
-    };
-    reader.readAsDataURL(file);
+        
+        if (isRaw) {
+            showProgress(100, '完成！');
+        }
+    } catch (error) {
+        hideProgress();
+        console.error('处理文件失败:', error);
+        alert('处理文件失败: ' + error.message);
+    }
 }
 
 // 处理多张图片（批量模式）
-function handleMultipleFiles(files) {
-    const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+async function handleMultipleFiles(files) {
+    const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/') || isRawFile(f));
     
     if (imageFiles.length === 0) {
         alert('请选择图片文件！');
         return;
     }
     
+    showProgress(0, `正在处理 ${imageFiles.length} 个文件...`);
+    
     let loaded = 0;
-    imageFiles.forEach(file => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const dataUrl = e.target.result;
+    const total = imageFiles.length;
+    
+    for (const file of imageFiles) {
+        try {
+            const dataUrl = await processFile(file);
             
             // 提取EXIF数据
             let exif = null;
@@ -442,25 +666,38 @@ function handleMultipleFiles(files) {
             }
             
             const img = new Image();
-            img.onload = () => {
-                batchImages.push({
-                    id: Date.now() + Math.random(),
-                    name: file.name,
-                    image: img,
-                    width: img.naturalWidth,
-                    height: img.naturalHeight,
-                    yPosition: 50,
-                    exif: exif  // 存储EXIF数据
-                });
-                loaded++;
-                if (loaded === imageFiles.length) {
-                    showBatchMode();
-                }
-            };
-            img.src = dataUrl;
-        };
-        reader.readAsDataURL(file);
-    });
+            await new Promise((resolve, reject) => {
+                img.onload = resolve;
+                img.onerror = reject;
+                img.src = dataUrl;
+            });
+            
+            batchImages.push({
+                id: Date.now() + Math.random(),
+                name: file.name,
+                image: img,
+                dataUrl: dataUrl,
+                width: img.naturalWidth,
+                height: img.naturalHeight,
+                yPosition: 50,
+                exif: exif  // 存储EXIF数据
+            });
+            
+            loaded++;
+            showProgress(Math.round((loaded / total) * 100), `处理中 ${loaded}/${total}...`);
+            
+        } catch (error) {
+            console.error('处理文件失败:', file.name, error);
+        }
+    }
+    
+    hideProgress();
+    
+    if (batchImages.length > 0) {
+        showBatchMode();
+    } else {
+        alert('没有成功加载任何图片！');
+    }
 }
 
 // 显示批量处理模式
