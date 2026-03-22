@@ -105,6 +105,26 @@
                     <span id="originalSize">SOURCE: -</span>
                     <span id="resultSize">OUTPUT: -</span>
                 </div>
+                <div class="watermark-section">
+                    <label class="watermark-toggle">
+                        <input type="checkbox" id="watermarkEnabled">
+                        <span class="toggle-label">📷 添加EXIF水印</span>
+                    </label>
+                    <div class="watermark-settings" id="watermarkSettings" style="display: none;">
+                        <div class="watermark-row">
+                            <label>位置</label>
+                            <select id="watermarkPosition">
+                                <option value="bottom-right">右下角</option>
+                                <option value="bottom-left">左下角</option>
+                                <option value="bottom-center">底部居中</option>
+                            </select>
+                        </div>
+                        <div class="watermark-row">
+                            <label>品牌</label>
+                            <input type="text" id="watermarkBrand" placeholder="XPAN" value="XPAN">
+                        </div>
+                    </div>
+                </div>
                 <div class="action-buttons">
                     <button class="btn btn-primary" id="downloadBtn">DOWNLOAD</button>
                     <button class="btn btn-secondary" id="resetBtn">RESET</button>

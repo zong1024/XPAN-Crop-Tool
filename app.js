@@ -85,13 +85,8 @@ function isRawFile(file) {
 
 // 从RAW文件中提取嵌入的JPEG预览
 function extractEmbeddedJpeg(data) {
-    // JPEG起始标记 FFD8，结束标记 FFD9
-    // Sony ARW 文件通常有多个嵌入的 JPEG（缩略图、预览图等）
-    // 我们需要找到最大的那个（全尺寸预览图通常在文件末尾附近）
-    
     let jpegSegments = [];
     
-    // 找所有的 JPEG 起始和结束标记
     for (let i = 0; i < data.length - 1; i++) {
         if (data[i] === 0xFF && data[i + 1] === 0xD8) {
             jpegSegments.push({ type: 'start', pos: i });
@@ -103,12 +98,10 @@ function extractEmbeddedJpeg(data) {
     
     console.log('找到 JPEG 标记总数:', jpegSegments.length);
     
-    // 找所有有效的 JPEG 段（起始到结束的配对）
     let validJpegs = [];
     for (let i = 0; i < jpegSegments.length; i++) {
         const marker = jpegSegments[i];
         if (marker.type === 'start') {
-            // 找这个起始标记后面最近的结束标记
             for (let j = i + 1; j < jpegSegments.length; j++) {
                 const endMarker = jpegSegments[j];
                 if (endMarker.type === 'end' && endMarker.pos > marker.pos) {
@@ -119,7 +112,7 @@ function extractEmbeddedJpeg(data) {
                         size: size,
                         startIndex: i
                     });
-                    break; // 只匹配第一个结束标记
+                    break;
                 }
             }
         }
@@ -127,15 +120,12 @@ function extractEmbeddedJpeg(data) {
     
     console.log('找到有效 JPEG 段:', validJpegs.length);
     
-    // 按大小排序，找最大的
     validJpegs.sort((a, b) => b.size - a.size);
     
-    // 输出所有找到的 JPEG 大小（调试用）
     validJpegs.forEach((jpeg, idx) => {
         console.log(`JPEG ${idx + 1}: 位置 ${jpeg.start}, 大小 ${(jpeg.size / 1024).toFixed(1)} KB`);
     });
     
-    // 选择最大的 JPEG（至少 100KB 才算全尺寸预览）
     if (validJpegs.length > 0 && validJpegs[0].size > 100000) {
         const best = validJpegs[0];
         console.log('选择最大 JPEG 预览: 位置', best.start, '大小', (best.size / 1024).toFixed(1), 'KB');
@@ -144,7 +134,6 @@ function extractEmbeddedJpeg(data) {
         return blob;
     }
     
-    // 降低要求到 10KB
     if (validJpegs.length > 0 && validJpegs[0].size > 10000) {
         const best = validJpegs[0];
         console.log('选择可用 JPEG 预览: 位置', best.start, '大小', (best.size / 1024).toFixed(1), 'KB');
@@ -161,7 +150,6 @@ function extractEmbeddedJpeg(data) {
 async function decodeRawFile(arrayBuffer, fileName) {
     const data = new Uint8Array(arrayBuffer);
     
-    // 方法1: 查找嵌入的JPEG预览图（大多数RAW文件都有）
     const jpegBlob = extractEmbeddedJpeg(data);
     if (jpegBlob) {
         console.log('成功提取嵌入的JPEG预览:', fileName);
@@ -173,12 +161,10 @@ async function decodeRawFile(arrayBuffer, fileName) {
         });
     }
     
-    // 方法2: 尝试使用 UTIF 解码（适用于TIFF格式的RAW）
     if (typeof UTIF !== 'undefined') {
         try {
             const ifds = UTIF.decode(arrayBuffer);
             if (ifds && ifds.length > 0) {
-                // 找最大的图像
                 let mainIfd = ifds[0];
                 for (const ifd of ifds) {
                     const w = UTIF.ifdGet(ifd, 256) || 0;
@@ -215,6 +201,159 @@ async function decodeRawFile(arrayBuffer, fileName) {
     }
     
     throw new Error('无法解码RAW文件，请确保文件是有效的RAW格式');
+}
+
+// 从EXIF中提取拍摄参数
+function getExifInfo(exif) {
+    const info = {
+        make: '',
+        model: '',
+        focalLength: '',
+        fNumber: '',
+        exposureTime: '',
+        iso: '',
+        dateTime: ''
+    };
+    
+    if (!exif) return info;
+    
+    try {
+        // 厂商和型号
+        if (exif['0th']) {
+            info.make = exif['0th'][piexif.ImageTag.Make] || '';
+            info.model = exif['0th'][piexif.ImageTag.Model] || '';
+            info.dateTime = exif['0th'][piexif.ImageTag.DateTime] || '';
+        }
+        
+        // 拍摄参数
+        if (exif['Exif']) {
+            const focal = exif['Exif'][piexif.ExifTag.FocalLength];
+            if (focal) {
+                info.focalLength = typeof focal === 'number' ? focal + 'mm' : (focal[0] / focal[1]) + 'mm';
+            }
+            
+            const fnum = exif['Exif'][piexif.ExifTag.FNumber];
+            if (fnum) {
+                const f = typeof fnum === 'number' ? fnum : fnum[0] / fnum[1];
+                info.fNumber = 'f/' + f.toFixed(1);
+            }
+            
+            const exp = exif['Exif'][piexif.ExifTag.ExposureTime];
+            if (exp) {
+                if (typeof exp === 'number') {
+                    info.exposureTime = exp < 1 ? '1/' + Math.round(1/exp) + 's' : exp + 's';
+                } else {
+                    const expVal = exp[0] / exp[1];
+                    info.exposureTime = expVal < 1 ? '1/' + Math.round(1/expVal) + 's' : expVal + 's';
+                }
+            }
+            
+            const iso = exif['Exif'][piexif.ExifTag.ISOSpeedRatings];
+            if (iso) {
+                info.iso = 'ISO ' + iso;
+            }
+            
+            if (!info.dateTime) {
+                info.dateTime = exif['Exif'][piexif.ExifTag.DateTimeOriginal] || '';
+            }
+        }
+    } catch (e) {
+        console.log('读取EXIF失败:', e);
+    }
+    
+    return info;
+}
+
+// 绘制OPPO风格水印
+function drawWatermark(ctx, exif, canvasWidth, canvasHeight) {
+    const watermarkEnabled = document.getElementById('watermarkEnabled');
+    if (!watermarkEnabled || !watermarkEnabled.checked) return;
+    
+    const position = document.getElementById('watermarkPosition').value;
+    const brand = document.getElementById('watermarkBrand').value || 'XPAN';
+    
+    const info = getExifInfo(exif);
+    
+    // 水印参数
+    const padding = Math.max(20, canvasWidth * 0.02);
+    const fontSize = Math.max(16, canvasWidth * 0.015);
+    const smallFontSize = fontSize * 0.7;
+    
+    ctx.font = `bold ${fontSize}px "Formula1", sans-serif`;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.textBaseline = 'bottom';
+    
+    // 构建水印文本
+    const lines = [];
+    
+    // 第一行：品牌 + 型号
+    let line1 = brand;
+    if (info.model) {
+        line1 += '  ' + info.model;
+    }
+    lines.push({ text: line1, size: fontSize });
+    
+    // 第二行：焦距 + 光圈 + 快门 + ISO
+    let line2 = [];
+    if (info.focalLength) line2.push(info.focalLength);
+    if (info.fNumber) line2.push(info.fNumber);
+    if (info.exposureTime) line2.push(info.exposureTime);
+    if (info.iso) line2.push(info.iso);
+    if (line2.length > 0) {
+        lines.push({ text: line2.join('  '), size: smallFontSize });
+    }
+    
+    // 第三行：日期
+    if (info.dateTime) {
+        // 格式化日期 2024:03:22 12:34:56 -> 2024.03.22
+        const dateStr = info.dateTime.split(' ')[0].replace(/:/g, '.');
+        lines.push({ text: dateStr, size: smallFontSize });
+    }
+    
+    // 计算水印总高度
+    const lineHeight = fontSize * 1.4;
+    const totalHeight = lines.length * lineHeight;
+    
+    // 计算位置
+    let x, y;
+    const textWidth = Math.max(...lines.map(l => {
+        ctx.font = `bold ${l.size}px "Formula1", sans-serif`;
+        return ctx.measureText(l.text).width;
+    }));
+    
+    switch (position) {
+        case 'bottom-left':
+            x = padding;
+            ctx.textAlign = 'left';
+            break;
+        case 'bottom-center':
+            x = canvasWidth / 2;
+            ctx.textAlign = 'center';
+            break;
+        case 'bottom-right':
+        default:
+            x = canvasWidth - padding;
+            ctx.textAlign = 'right';
+            break;
+    }
+    y = canvasHeight - padding;
+    
+    // 绘制半透明背景
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    const bgPadding = 15;
+    const bgX = position === 'bottom-left' ? padding - bgPadding : 
+               position === 'bottom-center' ? canvasWidth/2 - textWidth/2 - bgPadding :
+               canvasWidth - padding - textWidth - bgPadding;
+    ctx.fillRect(bgX, canvasHeight - padding - totalHeight - bgPadding, textWidth + bgPadding * 2, totalHeight + bgPadding * 2);
+    
+    // 绘制文字（从下往上）
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    for (let i = lines.length - 1; i >= 0; i--) {
+        const line = lines[i];
+        ctx.font = `bold ${line.size}px "Formula1", sans-serif`;
+        ctx.fillText(line.text, x, y);
+        y -= lineHeight;
+    }
 }
 
 // 初始化事件监听
@@ -277,6 +416,16 @@ function init() {
         batchPosition = parseInt(batchPositionSlider.value);
         batchPositionValueEl.textContent = batchPosition + '%';
     });
+    
+    // 水印开关
+    const watermarkEnabled = document.getElementById('watermarkEnabled');
+    const watermarkSettings = document.getElementById('watermarkSettings');
+    
+    if (watermarkEnabled) {
+        watermarkEnabled.addEventListener('change', () => {
+            watermarkSettings.style.display = watermarkEnabled.checked ? 'block' : 'none';
+        });
+    }
     
     // 下载按钮
     downloadBtn.addEventListener('click', downloadImage);
@@ -421,7 +570,6 @@ function startStitch() {
     startStitchBtn.disabled = true;
     showProgress(0, '初始化...');
     
-    // 使用主线程处理（简化版）
     setTimeout(() => {
         simpleStitch(stitchImg1, stitchImg2);
     }, 100);
@@ -437,23 +585,19 @@ function simpleStitch(img1Data, img2Data) {
         
         showProgress(40, '计算拼接...');
         
-        // 计算拼接后的尺寸
         const resultWidth = img1.width + img2.width;
         const resultHeight = Math.max(img1.height, img2.height);
         
-        // 创建画布
         const canvas = document.createElement('canvas');
         canvas.width = resultWidth;
         canvas.height = resultHeight;
         const ctx = canvas.getContext('2d');
         
-        // 绘制两张图片
         ctx.drawImage(img1, 0, 0);
         ctx.drawImage(img2, img1.width, 0);
         
         showProgress(60, '裁切为XPAN画幅...');
         
-        // 裁切为 XPAN 画幅
         const xpanRatio = 65 / 24;
         let cropWidth = resultWidth;
         let cropHeight = cropWidth / xpanRatio;
@@ -466,7 +610,6 @@ function simpleStitch(img1Data, img2Data) {
         const cropX = (resultWidth - cropWidth) / 2;
         const cropY = (resultHeight - cropHeight) / 2;
         
-        // 创建裁切后的画布
         const croppedCanvas = document.createElement('canvas');
         croppedCanvas.width = cropWidth;
         croppedCanvas.height = cropHeight;
@@ -476,24 +619,20 @@ function simpleStitch(img1Data, img2Data) {
         
         showProgress(80, '生成结果...');
         
-        // 转换为图片并显示
         const dataUrl = croppedCanvas.toDataURL('image/jpeg', 0.95);
         
-        // 设置为当前图片
         const resultImg = new Image();
         resultImg.onload = () => {
             currentImage = resultImg;
             imageWidth = cropWidth;
             imageHeight = cropHeight;
             
-            // 切换到编辑模式
             stitchUploadArea.style.display = 'none';
             progressContainer.style.display = 'none';
             editorContainer.style.display = 'grid';
             
             originalImage.src = dataUrl;
             
-            // 重置比例到 XPAN
             currentRatio = 65/24;
             currentRatioName = 'XPAN';
             document.querySelectorAll('#ratioOptions .ratio-btn').forEach(btn => {
@@ -538,11 +677,9 @@ async function processFile(file) {
     let dataUrl;
     
     if (isRaw) {
-        // 处理RAW文件
         const arrayBuffer = await file.arrayBuffer();
         dataUrl = await decodeRawFile(arrayBuffer, file.name);
     } else {
-        // 处理普通图片
         dataUrl = await new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = (e) => resolve(e.target.result);
@@ -563,7 +700,6 @@ async function handleFile(file) {
         return;
     }
     
-    // 显示加载提示
     if (isRaw) {
         showProgress(0, '正在解码RAW文件...');
     }
@@ -573,7 +709,6 @@ async function handleFile(file) {
         let exifData = null;
         
         if (isRaw) {
-            // 处理RAW文件
             showProgress(30, '读取RAW数据...');
             const arrayBuffer = await file.arrayBuffer();
             
@@ -581,14 +716,12 @@ async function handleFile(file) {
             dataUrl = await decodeRawFile(arrayBuffer, file.name);
             
             showProgress(80, '加载预览...');
-            // RAW文件通常不包含标准EXIF，尝试从预览图中提取
             try {
                 exifData = piexif.load(dataUrl);
             } catch (ex) {
                 console.log('No EXIF data in decoded RAW');
             }
         } else {
-            // 处理普通图片
             dataUrl = await new Promise((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onload = (e) => resolve(e.target.result);
@@ -596,7 +729,6 @@ async function handleFile(file) {
                 reader.readAsDataURL(file);
             });
             
-            // 提取EXIF数据
             try {
                 exifData = piexif.load(dataUrl);
             } catch (ex) {
@@ -657,7 +789,6 @@ async function handleMultipleFiles(files) {
         try {
             const dataUrl = await processFile(file);
             
-            // 提取EXIF数据
             let exif = null;
             try {
                 exif = piexif.load(dataUrl);
@@ -680,7 +811,7 @@ async function handleMultipleFiles(files) {
                 width: img.naturalWidth,
                 height: img.naturalHeight,
                 yPosition: 50,
-                exif: exif  // 存储EXIF数据
+                exif: exif
             });
             
             loaded++;
@@ -731,12 +862,10 @@ function renderQueue() {
         `;
         imageQueue.appendChild(div);
         
-        // 绘制预览
         const previewCanvas = div.querySelector('.preview-canvas');
         drawPreview(item, previewCanvas, 80);
     });
     
-    // 删除按钮事件
     document.querySelectorAll('.queue-remove').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const index = parseInt(e.target.dataset.index);
@@ -868,17 +997,14 @@ function canvasToDataURLWithExif(canvas, exif, quality = 0.95) {
     
     if (exif) {
         try {
-            // 更新EXIF中的图片尺寸
             const width = canvas.width;
             const height = canvas.height;
             
-            // 更新0th IFD中的尺寸信息
             if (exif['0th']) {
                 exif['0th'][piexif.ImageTag.ImageWidth] = width;
                 exif['0th'][piexif.ImageTag.ImageLength] = height;
             }
             
-            // 更新Exif IFD中的像素尺寸
             if (exif['Exif']) {
                 exif['Exif'][piexif.ExifTag.PixelXDimension] = width;
                 exif['Exif'][piexif.ExifTag.PixelYDimension] = height;
@@ -915,7 +1041,9 @@ function downloadImage() {
         0, 0, cropWidth, cropHeight
     );
     
-    // 使用带EXIF的导出
+    // 绘制水印
+    drawWatermark(ctx, currentExif, cropWidth, cropHeight);
+    
     const dataUrl = canvasToDataURLWithExif(canvas, currentExif);
     
     const link = document.createElement('a');
@@ -977,7 +1105,9 @@ async function downloadAllAsZip() {
             0, 0, cropWidth, cropHeight
         );
         
-        // 使用带EXIF的导出
+        // 绘制水印
+        drawWatermark(ctx, item.exif, cropWidth, cropHeight);
+        
         const dataUrl = canvasToDataURLWithExif(canvas, item.exif);
         const blob = dataURLtoBlob(dataUrl);
         
